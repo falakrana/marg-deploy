@@ -39,7 +39,13 @@ services:
         condition: service_healthy
     environment:
       MARG_ENV: production
-      MARG_DATABASE_URL: ${MARG_DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-marg}:${POSTGRES_PASSWORD:-marg_secure_password_123}@postgres:5432/${POSTGRES_DB:-marg}}
+      MARG_ENABLE_DOCS: ${MARG_ENABLE_DOCS:-true}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-marg}
+      POSTGRES_USER: ${POSTGRES_USER:-marg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-marg_secure_password_123}
+      MARG_DATABASE_URL: ${MARG_DATABASE_URL:-}
       MARG_SECRET_KEY: ${MARG_SECRET_KEY:-default_secret_key_change_in_production_32chars}
       MARG_ADMIN_TOKEN: ${MARG_ADMIN_TOKEN:-admin_secret_token_123}
       MARG_METRICS_TOKEN: ${MARG_METRICS_TOKEN:-metrics_token_123}
@@ -74,7 +80,7 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
       interval: 15s
       timeout: 3s
       retries: 3
