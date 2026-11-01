@@ -1,0 +1,87 @@
+# =============================================================================
+# Marg MCP — Public Self-Hosted Production Compose Stack
+# Repository: https://github.com/falakrana/marg-deploy
+# =============================================================================
+# Quickstart:
+#   docker compose up -d
+#
+# Access:
+#   Dashboard UI: http://localhost:80
+#   Ingestion API: http://localhost:8000
+#   API Docs:      http://localhost:8000/docs
+# =============================================================================
+
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-marg}
+      POSTGRES_USER: ${POSTGRES_USER:-marg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-marg_secure_password_123}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - marg_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-marg} -d ${POSTGRES_DB:-marg}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    image: ghcr.io/falakrana/marg-backend:${MARG_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MARG_ENV: production
+      MARG_DATABASE_URL: ${MARG_DATABASE_URL:-postgresql+psycopg2://${POSTGRES_USER:-marg}:${POSTGRES_PASSWORD:-marg_secure_password_123}@postgres:5432/${POSTGRES_DB:-marg}}
+      MARG_SECRET_KEY: ${MARG_SECRET_KEY:-default_secret_key_change_in_production_32chars}
+      MARG_ADMIN_TOKEN: ${MARG_ADMIN_TOKEN:-admin_secret_token_123}
+      MARG_METRICS_TOKEN: ${MARG_METRICS_TOKEN:-metrics_token_123}
+      MARG_LOG_LEVEL: ${MARG_LOG_LEVEL:-INFO}
+      MARG_LOG_FORMAT: ${MARG_LOG_FORMAT:-json}
+      MARG_RUN_RETENTION_DAYS: ${MARG_RUN_RETENTION_DAYS:-90}
+      MARG_TRACE_RETENTION_DAYS: ${MARG_TRACE_RETENTION_DAYS:-30}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
+      DIAGNOSTIC_LLM_PROVIDER: ${DIAGNOSTIC_LLM_PROVIDER:-none}
+      DIAGNOSTIC_LLM_API_KEY: ${DIAGNOSTIC_LLM_API_KEY:-}
+      DIAGNOSTIC_LLM_MODEL: ${DIAGNOSTIC_LLM_MODEL:-}
+      DIAGNOSTIC_LLM_BASE_URL: ${DIAGNOSTIC_LLM_BASE_URL:-}
+    networks:
+      - marg_network
+    ports:
+      - "${MARG_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    image: ghcr.io/falakrana/marg-frontend:${MARG_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "${MARG_HTTP_PORT:-80}:80"
+    networks:
+      - marg_network
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  pgdata:
+
+networks:
+  marg_network:
+    driver: bridge
